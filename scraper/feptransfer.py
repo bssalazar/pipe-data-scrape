@@ -54,6 +54,17 @@ class FepTransfer(PipelineScraper):
     def __init__(self, job_id):
         PipelineScraper.__init__(self, job_id, web_url=self.api_url, source=self.source)
 
+    def add_columns(self, df_data):
+        response = self.session.get(self.get_url, headers=self.get_page_headers)
+        soup = BeautifulSoup(response.text, 'lxml')
+        df_data.insert(0, 'TSP', self.tsp, True)
+        df_data.insert(1, 'TSP Name', self.tsp_name, True)
+        df_data.insert(2, 'Post Date/Time', soup.find_all('strong')[0].nextSibling.text.strip(), True)
+        df_data.insert(3, 'Effective Gas Day/Time', soup.find_all('strong')[1].nextSibling.text.strip(), True)
+        df_data.insert(4, 'Meas Basis Desc', soup.find_all('strong')[2].nextSibling.text.strip(), True)
+
+        return df_data
+
     def start_scraping(self, post_date: date = None):
         try:
             logger.info('Scraping %s pipeline gas for post date: %s', self.source, post_date)
@@ -62,14 +73,8 @@ class FepTransfer(PipelineScraper):
             html_text = response.text
             csv_data = StringIO(html_text)
             df_result = pandas.read_csv(csv_data)
-            response = self.session.get(self.get_url, headers=self.get_page_headers)
-            soup = BeautifulSoup(response.text, 'lxml')
-            df_result.insert(0, 'TSP', self.tsp, True)
-            df_result.insert(1, 'TSP Name', self.tsp_name, True)
-            df_result.insert(2, 'Post Date/Time', soup.find_all('strong')[0].nextSibling.text.strip(), True)
-            df_result.insert(3, 'Effective Gas Day/Time', soup.find_all('strong')[1].nextSibling.text.strip(), True)
-            df_result.insert(4, 'Meas Basis Desc', soup.find_all('strong')[2].nextSibling.text.strip(), True)
-            self.save_result(df_result, post_date=post_date, local_file=True)
+            final_report = self.add_columns(df_result)
+            self.save_result(final_report, post_date=post_date, local_file=True)
 
             logger.info('File saved. end of scraping: %s', self.source)
 
