@@ -4,6 +4,7 @@ from io import StringIO
 import logging
 
 import pandas
+import pandas as pd
 from bs4 import BeautifulSoup
 
 from scraper import PipelineScraper
@@ -13,12 +14,13 @@ logging.basicConfig(format='%(asctime)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-class FepTransfer(PipelineScraper):
-    tsp = '829416002'
-    tsp_name = 'Fayetteville Express Pipeline LLC'
+class EnergyTransfer(PipelineScraper):
+    tsp = ['829416002', '007933047']
+    tsp_name = ['Fayetteville Express Pipeline, LLC', 'Transwestern Pipeline Company, LLC']
     source = 'feptransfer.energytransfer'
     api_url = 'https://feptransfer.energytransfer.com/index.jsp'
-    post_url = 'https://feptransfer.energytransfer.com/ipost/FEP/capacity/operationally-available'
+    post_url = 'https://feptransfer.energytransfer.com/ipost/{}/capacity/operationally-available'
+    asset = ['FEP', 'TW']
     download_csv_url = 'https://feptransfer.energytransfer.com/ipost/capacity/operationally-available'
 
     get_page_headers = {
@@ -64,7 +66,6 @@ class FepTransfer(PipelineScraper):
     params = {
         'f': 'csv',
         'extension': 'csv',
-        'asset': 'FEP',
         'cycle': '1',  # 0 = timely, 1 = evening, 3 = ID1, 4 = ID2, 7 = ID3
         'searchType': 'NOM',
         'searchString': '',
@@ -101,16 +102,16 @@ class FepTransfer(PipelineScraper):
 
         return self.payload
 
-    def add_columns(self, df_data, post_date: date = None):
+    def add_columns(self, df_data, comp, ind, post_date: date = None):
         payload = self.set_payload(post_date)
-        page_response = self.session.post(self.post_url, headers=self.post_page_headers, data=payload)
+        page_response = self.session.post(self.post_url.format(comp), headers=self.post_page_headers, data=payload)
         soup = BeautifulSoup(page_response.text, 'lxml')
         # text is not enclosed by tags, the closest identifier is class:pad.
         post_date_time = soup.find_all('p', {'class': 'pad'})[0].findChild('strong').nextSibling.text
         eff_gas_day_time = soup.find_all('p', {'class': 'pad'})[1].findChild('strong').nextSibling.text
         meas_basis = soup.find_all('p', {'class': 'pad'})[2].findChild('strong').nextSibling.text
-        df_data.insert(0, 'TSP', self.tsp, True)
-        df_data.insert(1, 'TSP Name', self.tsp_name, True)
+        df_data.insert(0, 'TSP', self.tsp[ind], True)
+        df_data.insert(1, 'TSP Name', self.tsp_name[ind], True)
         df_data.insert(2, 'Post Date/Time', post_date_time.strip(), True)
         df_data.insert(3, 'Effective Gas Day/Time', eff_gas_day_time.strip(), True)
         df_data.insert(4, 'Meas Basis Desc', meas_basis.strip(), True)
@@ -118,27 +119,33 @@ class FepTransfer(PipelineScraper):
         return df_data
 
     def start_scraping(self, post_date: date = None):
-        try:
-            logger.info('Scraping %s pipeline gas for post date: %s', self.source, post_date)
-            params = self.set_params(post_date)
-            response = self.session.get(self.download_csv_url, headers=self.get_page_headers, params=params)
-            response.raise_for_status()
-            html_text = response.text
-            csv_data = StringIO(html_text)
-            df_result = pandas.read_csv(csv_data)
-            final_report = self.add_columns(df_result, post_date)
-            self.save_result(final_report, post_date=post_date, local_file=True)
+        init_df = pd.DataFrame()
+        for count, each in enumerate(self.asset):
+            try:
+                logger.info('Scraping %s pipeline gas for post date: %s', self.source, post_date)
+                company = {'asset': each}
+                self.params.update(company)
+                params = self.set_params(post_date)
+                response = self.session.get(self.download_csv_url, headers=self.get_page_headers, params=params)
+                response.raise_for_status()
+                html_text = response.text
+                csv_data = StringIO(html_text)
+                df_result = pd.read_csv(csv_data)
+                final_report = self.add_columns(df_result, each, count, post_date)
+                init_df = pd.concat([init_df, final_report])
+                logger.info('DF created for %s', each)
 
-            logger.info('File saved. end of scraping: %s', self.source)
+            except Exception as ex:
+                logger.error(ex, exc_info=True)
 
-        except Exception as ex:
-            logger.error(ex, exc_info=True)
+        self.save_result(init_df, post_date=post_date, local_file=True)
+        logger.info('File saved. end of scraping: %s', self.source)
 
         return None
 
 
 def back_fill_pipeline_date():
-    scraper = FepTransfer(job_id=str(uuid.uuid4()))
+    scraper = EnergyTransfer(job_id=str(uuid.uuid4()))
     for i in range(90, -1, -1):
         post_date = (date.today() - timedelta(days=i))
         print(post_date)
@@ -148,8 +155,8 @@ def back_fill_pipeline_date():
 def main():
     # set your own date to scrape. default is current date
     custom_date = date.fromisoformat('2022-08-28')
-    scraper = FepTransfer(job_id=str(uuid.uuid4()))
-    scraper.start_scraping()
+    scraper = EnergyTransfer(job_id=str(uuid.uuid4()))
+    scraper.start_scraping(custom_date)
     scraper.scraper_info()
 
 
