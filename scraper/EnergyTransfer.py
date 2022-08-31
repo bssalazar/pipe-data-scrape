@@ -3,7 +3,6 @@ from datetime import date, timedelta
 from io import StringIO
 import logging
 
-import pandas
 import pandas as pd
 from bs4 import BeautifulSoup
 
@@ -17,10 +16,11 @@ logger = logging.getLogger(__name__)
 class EnergyTransfer(PipelineScraper):
     tsp = ['829416002', '007933047']
     tsp_name = ['Fayetteville Express Pipeline, LLC', 'Transwestern Pipeline Company, LLC']
+    asset = ['FEP', 'TW']
     source = 'feptransfer.energytransfer'
     api_url = 'https://feptransfer.energytransfer.com/index.jsp'
     post_url = 'https://feptransfer.energytransfer.com/ipost/{}/capacity/operationally-available'
-    asset = ['FEP', 'TW']
+
     download_csv_url = 'https://feptransfer.energytransfer.com/ipost/capacity/operationally-available'
 
     get_page_headers = {
@@ -102,16 +102,16 @@ class EnergyTransfer(PipelineScraper):
 
         return self.payload
 
-    def add_columns(self, df_data, comp, ind, post_date: date = None):
+    def add_columns(self, df_data, sub_company, num, post_date: date = None):
         payload = self.set_payload(post_date)
-        page_response = self.session.post(self.post_url.format(comp), headers=self.post_page_headers, data=payload)
+        page_response = self.session.post(self.post_url.format(sub_company), headers=self.post_page_headers, data=payload)
         soup = BeautifulSoup(page_response.text, 'lxml')
         # text is not enclosed by tags, the closest identifier is class:pad.
         post_date_time = soup.find_all('p', {'class': 'pad'})[0].findChild('strong').nextSibling.text
         eff_gas_day_time = soup.find_all('p', {'class': 'pad'})[1].findChild('strong').nextSibling.text
         meas_basis = soup.find_all('p', {'class': 'pad'})[2].findChild('strong').nextSibling.text
-        df_data.insert(0, 'TSP', self.tsp[ind], True)
-        df_data.insert(1, 'TSP Name', self.tsp_name[ind], True)
+        df_data.insert(0, 'TSP', self.tsp[num], True)
+        df_data.insert(1, 'TSP Name', self.tsp_name[num], True)
         df_data.insert(2, 'Post Date/Time', post_date_time.strip(), True)
         df_data.insert(3, 'Effective Gas Day/Time', eff_gas_day_time.strip(), True)
         df_data.insert(4, 'Meas Basis Desc', meas_basis.strip(), True)
@@ -154,7 +154,7 @@ def back_fill_pipeline_date():
 
 def main():
     # set your own date to scrape. default is current date
-    custom_date = date.fromisoformat('2022-08-28')
+    custom_date = date.fromisoformat('2022-08-25')
     scraper = EnergyTransfer(job_id=str(uuid.uuid4()))
     scraper.start_scraping(custom_date)
     scraper.scraper_info()
