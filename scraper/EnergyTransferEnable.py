@@ -19,11 +19,7 @@ class EnergyTransferEnable(PipelineScraper):
     source = 'pipelines.energytransfer'
     api_url = 'https://pipelines.energytransfer.com'
 
-    # format, put asset in braces
     get_url = 'https://pipelines.energytransfer.com/ipost/{}/capacity/enbl-operationally-available?max=ALL'
-
-    # format, put report id in braces
-    # download_data_url = 'https://pipelines.energytransfer.com/ipost/MRT/base/popup-report/{}?title=Operationally+Available'
 
     get_page_headers = {
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
@@ -116,9 +112,11 @@ class EnergyTransferEnable(PipelineScraper):
                                    'Design Capacity', 'Operating Capacity', 'Total Scheduled Quantity',
                                    'Operationally Available Capacity', 'Flow Ind Desc', 'IT Desc']
                         rows = []
+                        # splits the preformatted table every after new line (\n).
                         for line in pre.split('\n')[15:-1]:
                             if 'COMMENTS AND NOTES' not in line:
                                 column_sep_index.append(None)
+                                # divides each line into parts where each belong to a corresponding column in the report.
                                 parts = [line[column_sep_index[i]:column_sep_index[i + 1]] for i in range(len(column_sep_index) - 1)]
                                 row = [x.strip() for x in parts[0:12]]
                                 rows.append(row)
@@ -151,7 +149,7 @@ def back_fill_pipeline_date():
 
 
 def main():
-    # set your own date to scrape. default is current date
+    # set your own date to scrape. default is current date.
     custom_date = date.fromisoformat('2022-08-15')
     # set desired cycle: 0 = timely, 1 = evening, 2 = ID1, 3 = ID2, 4 = ID3, 5 = Final
     # default value is 5 = final; csv file might be empty if cycle = 5 is not yet available.
