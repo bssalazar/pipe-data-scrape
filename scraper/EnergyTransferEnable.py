@@ -73,13 +73,13 @@ class EnergyTransferEnable(PipelineScraper):
 
         return info_dict
 
-    def add_columns(self, num, report, ins_det):
+    def add_columns(self, num, report, details):
         report.insert(0, 'TSP', self.tsp[num], True)
         report.insert(1, 'TSP Name', self.tsp_name[num], True)
-        report.insert(2, 'Post Date/Time', ins_det['Posting Date/Posting Time'], True)
-        report.insert(3, 'Effective Gas Day/Time', ins_det['Effective Gas Day/Effective Time'], True)
-        report.insert(4, 'Cycle', ins_det['Cycle'], True)
-        report.insert(5, 'Meas Basis Desc', ins_det['Meas Basis Desc'], True)
+        report.insert(2, 'Post Date/Time', details['Posting Date/Posting Time'], True)
+        report.insert(3, 'Effective Gas Day/Time', details['Effective Gas Day/Effective Time'], True)
+        report.insert(4, 'Cycle', details['Cycle'], True)
+        report.insert(5, 'Meas Basis Desc', details['Meas Basis Desc'], True)
         report.insert(18, 'Qty Reason', ' ', True)
 
         return report
@@ -115,7 +115,6 @@ class EnergyTransferEnable(PipelineScraper):
                         # splits the preformatted table every after new line (\n).
                         for line in pre.split('\n')[15:-1]:
                             if 'COMMENTS AND NOTES' not in line:
-                                column_sep_index.append(None)
                                 # divides each line into parts where each belong to a corresponding column in the report.
                                 parts = [line[column_sep_index[i]:column_sep_index[i + 1]] for i in range(len(column_sep_index) - 1)]
                                 row = [x.strip() for x in parts[0:12]]
@@ -150,7 +149,7 @@ def back_fill_pipeline_date():
 
 def main():
     # set your own date to scrape. default is current date.
-    custom_date = date.fromisoformat('2022-08-15')
+    custom_date = date.fromisoformat('2022-09-09')
     # set desired cycle: 0 = timely, 1 = evening, 2 = ID1, 3 = ID2, 4 = ID3, 5 = Final
     # default value is 5 = final; csv file might be empty if cycle = 5 is not yet available.
     custom_cycle = 3
